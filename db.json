@@ -1,0 +1,18 @@
+{
+ "u": [
+  {
+   "id": "cb655af951",
+   "role": "admin",
+   "name": "Super Admin",
+   "username": "admin",
+   "salt": "0a1213aba9",
+   "h": "c2e6b658346bb235d9edcfdef7059c40a40d1e7dfd16dc7ed08b7c52e89387b1"
+  }
+ ],
+ "s": [],
+ "n": [],
+ "r": [],
+ "d": [],
+ "f": [],
+ "p": []
+}
