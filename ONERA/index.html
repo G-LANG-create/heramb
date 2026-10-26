@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>ONERA</title>
+<style>
+:root{--ink:#17304a;--chalk:#f6f7f2;--saffron:#e59a12;--line:#d9dccf;--mute:#5d6b78}
+*{box-sizing:border-box}body{margin:0;background:var(--chalk);color:var(--ink);font:16px/1.5 Georgia,'Times New Roman',serif}
+button,input,select,textarea{font:15px system-ui,sans-serif}
+header{background:var(--ink);color:#fff;padding:14px 5vw;display:flex;justify-content:space-between;align-items:center;gap:12px}
+header b{font-size:21px}header span{font:14px system-ui}
+button{background:var(--saffron);border:0;color:#1b1400;padding:9px 16px;border-radius:6px;cursor:pointer;font-weight:600}
+button:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-visible{outline:3px solid var(--saffron);outline-offset:1px}
+main{max-width:1000px;margin:0 auto;padding:24px 5vw 60px}
+.hero{padding:30px 0 18px}.hero h1{font-size:clamp(28px,5vw,44px);margin:0 0 14px;line-height:1.15}
+.hero input{width:100%;max-width:560px;padding:13px 16px;border:2px solid var(--ink);border-radius:6px;background:#fff}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:16px;margin:18px 0 30px}
+.sc{background:#fff;border:1px solid var(--line);border-left:6px solid var(--saffron);padding:14px 16px}
+.sc h3{margin:0}.sc p{margin:4px 0 8px;color:var(--mute);font:14px system-ui}
+.chips span{display:inline-block;font:12px system-ui;border:1px solid var(--line);padding:1px 7px;margin:2px 2px 0 0;border-radius:10px}
+form{background:#fff;border:1px solid var(--line);padding:16px;margin:16px 0;max-width:460px}
+form h3{margin:0 0 10px}label{display:block;font:14px system-ui;margin-bottom:10px}
+input,select,textarea{display:block;width:100%;padding:8px;margin-top:3px;border:1px solid #b9bdae;border-radius:5px}
+.tabs{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:14px}.tabs button{background:#e4e7da;color:var(--ink)}.tabs .on{background:var(--ink);color:#fff}
+table{width:100%;border-collapse:collapse;background:#fff;font:14px system-ui;display:block;overflow-x:auto}
+th,td{text-align:left;padding:8px 10px;border-bottom:1px solid var(--line);white-space:nowrap}th{background:#eceee3}
+.note{background:#fff;border:1px solid var(--line);padding:12px 16px;margin:10px 0;white-space:pre-wrap}.note.lock{border-style:dashed;color:var(--mute)}
+.bad{color:#b3261e;font-weight:700}.ok{color:#1d7a3a;font-weight:700}.banner{background:#fff3d6;border:1px solid var(--saffron);padding:12px 16px;margin-bottom:12px;font:15px system-ui}
+.empty{color:var(--mute);font:15px system-ui;padding:10px 0}
+</style></head><body>
+<header><b>ONERA</b><div id="nav"></div></header>
+<main id="app"><p class="empty">Loading website...</p></main>
+<script>
+const $=s=>document.querySelector(s);
+let T=localStorage.t||'',U=JSON.parse(localStorage.u||'null'),tab=0,timer;
+const esc=s=>String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+async function api(p,m='GET',b){
+  const r=await fetch('/api/'+p,{method:m,headers:{'Content-Type':'application/json',Authorization:T},body:b?JSON.stringify(b):undefined});
+  const ct=r.headers.get('content-type')||'';
+  if(!ct.includes('application/json')){
+    const text=await r.text();
+    throw new Error('API returned a webpage instead of JSON. Start the ONERA backend with `node server.js` and open http://localhost:3000.');
+  }
+  const j=await r.json();
+  if(r.status===401&&p!=='login'){out();throw 'Session ended. Please login again.'}
+  if(!r.ok)throw j.error||'Error';return j}
+function out(){T='';U=null;localStorage.clear();go()}
+const inp=(n,l,t='text')=>t==='textarea'?`<label>${l}<textarea name="${n}" rows="5" required></textarea></label>`:`<label>${l}<input name="${n}" type="${t}" required></label>`;
+const sel=(n,l,o)=>`<label>${l}<select name="${n}">${o.map(([v,t])=>`<option value="${esc(v)}">${esc(t)}</option>`).join('')}</select></label>`;
+const CL=[...Array(10)].map((_,i)=>[i+1,'Class '+(i+1)]);
+const form=(p,t,f,btn='Save')=>`<form data-p="${p}"><h3>${t}</h3>${f.join('')}<button>${btn}</button></form>`;
+const tbl=(h,rows)=>rows.length?`<table><tr>${h.map(x=>`<th>${x}</th>`).join('')}</tr>${rows.map(r=>`<tr>${r.map(c=>`<td>${c}</td>`).join('')}</tr>`).join('')}</table>`:'<p class="empty">Nothing here yet.</p>';
+const schoolCards=s=>s.length?s.map(x=>`<div class="sc"><h3>${esc(x.name)}</h3><p>${esc(x.type)} in ${esc(x.city)}</p><div class="chips">${CL.map(c=>`<span>${c[0]}</span>`).join('')}</div></div>`).join(''):'<p class="empty">No school found. Try another name or city.</p>';
+const date=d=>new Date(d).toLocaleDateString('en-IN',{day:'numeric',month:'short',year:'numeric'});
+
+async function home(){
+  const s=await api('schools');
+  return `<section class="hero"><h1>Find your school or college</h1><input id="q" placeholder="Search by school name, city or type" oninput="srch(this.value)" aria-label="Search schools"></section>
+  <div class="grid" id="list">${schoolCards(s)}</div>
+  ${form('login','Login',[inp('username','Username'),inp('password','Password','password')],'Login')}
+  <p class="empty">Admin, school, teacher and student all login here. Default admin: admin / admin123</p>`}
+function srch(v){clearTimeout(timer);timer=setTimeout(async()=>{$('#list').innerHTML=schoolCards(await api('schools?q='+encodeURIComponent(v)))},200)}
+
+const V={
+ async Schools(){const s=await api('schools');
+  return form('schools','Add school or college',[inp('name','Name'),sel('type','Type',[['School','School'],['College','College']]),inp('city','City'),inp('username','School login username'),inp('password','School login password','password')],'Add school')
+   +tbl(['Name','Type','City'],s.map(x=>[esc(x.name),x.type,esc(x.city)]))},
+ async People(){const u=await api('users');
+  return form('users','Add teacher or student',[sel('role','Role',[['student','Student'],['teacher','Teacher']]),inp('name','Full name'),sel('cls','Class (students only)',CL),inp('username','Login username'),inp('password','Password','password')],'Add person')
+   +tbl(['Name','Role','Class','Username'],u.map(x=>[esc(x.name),x.role,x.cls||'-',esc(x.username)]))},
+ async Notes(){const r=await api('notes');
+  if(U.role==='student'){
+   const bn=r.subscribed?`<div class="banner">Subscription active until ${date(U.sub)}.</div>`:`<div class="banner">Subscribe for ₹${r.price} to read Class ${U.cls} notes for 30 days. <button onclick="subscribe()">Pay ₹${r.price} and subscribe</button></div>`;
+   return bn+(r.items.length?r.items.map(n=>n.content!==null?`<div class="note"><b>${esc(n.title)}</b>\n${esc(n.content)}</div>`:`<div class="note lock">🔒 ${esc(n.title)} — subscribe to read</div>`).join(''):'<p class="empty">No notes for your class yet.</p>')}
+  const f=U.role==='teacher'?form('notes','Upload notes',[sel('cls','Class',CL),inp('title','Title'),inp('content','Notes','textarea')],'Upload'):'';
+  return f+tbl(['Class','Title','By','Date'],r.items.map(n=>[n.cls,esc(n.title),esc(n.by),date(n.at)]))},
+ async Results(){const r=await api('results');let f='';
+  if(U.role!=='student'){const u=(await api('users')).filter(x=>x.role==='student');
+   f=form('results','Add result',[sel('studentId','Student',u.map(x=>[x.id,`${x.name} (Class ${x.cls})`])),inp('exam','Exam (e.g. Term 1)'),inp('subject','Subject'),inp('marks','Marks obtained','number'),inp('total','Total marks','number')])}
+  return f+tbl(['Student','Exam','Subject','Marks','%'],r.map(x=>[esc(x.student),esc(x.exam),esc(x.subject),`${x.marks}/${x.total}`,Math.round(x.marks/x.total*100)+'%']))},
+ async Documents(){const d=await api('docs');let f='';
+  if(U.role==='school'){const u=(await api('users')).filter(x=>x.role==='student');
+   f=form('docs','Upload student document photo',[sel('studentId','Student',u.map(x=>[x.id,`${x.name} (Class ${x.cls})`])),sel('type','Document type',[['Aadhaar','Aadhaar Card'],['Birth Certificate','Birth Certificate'],['Caste Certificate','Caste Certificate'],['Income Certificate','Income Certificate'],['Other','Other']]),`<label>Document photo (JPG, PNG or WebP; max 3 MB)<input name="photo" type="file" accept="image/jpeg,image/png,image/webp" required></label>`],'Upload photo')}
+  return f+tbl(['Student','Document','Photo'],d.map(x=>[esc(x.student),esc(x.type),x.photoData?`<a href="${x.photoData}" target="_blank" rel="noopener"><img src="${x.photoData}" alt="${esc(x.type)} photo" style="width:110px;height:75px;object-fit:cover;border:1px solid #ddd;border-radius:4px"></a>`:'No photo']))},
+ async Fees(){const f=await api('fees'),st=U.role==='student',now=new Date().setHours(0,0,0,0);
+  return (st?'':form('fees','Add payment',[inp('title','Title (e.g. Term 2 fee)'),inp('amount','Amount (₹)','number'),inp('dueDate','Last date','date')]))
+   +tbl(st?['Payment','Amount','Last date','Status','']:['Payment','Amount','Last date','Paid by'],f.map(x=>st?[esc(x.title),'₹'+x.amount,date(x.dueDate),x.paid?'<span class="ok">Paid</span>':(new Date(x.dueDate)<now?'<span class="bad">Overdue</span>':'Due'),x.paid?'':`<button onclick="pay('${x.id}')">Pay now</button>`]:[esc(x.title),'₹'+x.amount,date(x.dueDate),x.paidCount+' students']))}
+};
+const TABS={admin:['Schools'],school:['People','Results','Documents','Fees'],teacher:['Notes','Results'],student:['Notes','Results','Documents','Fees']};
+async function dash(){const t=TABS[U.role],n=t[tab]||t[0];
+  return `<div class="tabs">${t.map((x,i)=>`<button class="${x===n?'on':''}" onclick="tab=${i};go()">${x}</button>`).join('')}</div>`+await V[n]()}
+async function go(){
+  $('#nav').innerHTML=U?`<span>${esc(U.name)} (${U.role}) </span><button onclick="out()">Logout</button>`:'';
+  try{$('#app').innerHTML=U?await dash():await home()}catch(e){alert(e)}}
+async function subscribe(){try{U=await api('subscribe','POST');localStorage.u=JSON.stringify(U);go()}catch(e){alert(e)}}
+async function pay(id){try{await api('pay','POST',{feeId:id});go()}catch(e){alert(e)}}
+document.addEventListener('submit',async e=>{e.preventDefault();const f=e.target,p=f.dataset.p;
+  try{
+   const data=Object.fromEntries(new FormData(f));
+   if(p==='docs'){
+    const file=f.elements.photo.files[0];
+    if(!file)throw 'Please choose a document photo.';
+    if(!['image/jpeg','image/png','image/webp'].includes(file.type))throw 'Choose a JPG, PNG or WebP image.';
+    if(file.size>3*1024*1024)throw 'Image must be 3 MB or smaller.';
+    data.photoData=await new Promise((resolve,reject)=>{const reader=new FileReader();reader.onload=()=>resolve(reader.result);reader.onerror=()=>reject('Could not read the image.');reader.readAsDataURL(file)});
+    delete data.photo;
+   }
+   const r=await api(p,'POST',data);
+   if(p==='login'){T=r.token;U=r.user;localStorage.t=T;localStorage.u=JSON.stringify(U);tab=0}go()
+  }catch(x){alert(x)}});
+go();
+</script></body></html>
